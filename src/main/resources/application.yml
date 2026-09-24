@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/camunda?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: camunda
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # Camunda 官方推荐 READ_COMMITTED，避免并行流程场景死锁。
+      # 这样设置后引擎的隔离级别检查自然通过，无需 skip-isolation-level-check
+      # （注意：camunda.bpm.database.skip-isolation-level-check 在 7.24 的
+      #  Spring Boot Starter 中并不存在，写了不生效）
+      transaction-isolation: TRANSACTION_READ_COMMITTED
+
+camunda:
+  bpm:
+    admin-user:
+      id: admin
+      password: admin
+      firstName: Admin
+    filter:
+      create: All tasks
+    history-level: full
+    eventing:
+      enabled: true
+      execution: true
+      task: true
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+
+server:
+  port: 8080

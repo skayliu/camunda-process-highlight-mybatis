@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.camunda.bpm.getstarted.mapper.HighlightRecordMapper">
+
+    <resultMap id="HighlightRecordMap" type="org.camunda.bpm.getstarted.entity.HighlightRecord">
+        <id column="id" property="id"/>
+        <result column="process_instance_id" property="processInstanceId"/>
+        <result column="process_definition_id" property="processDefinitionId"/>
+        <result column="execution_id" property="executionId"/>
+        <result column="element_id" property="elementId"/>
+        <result column="element_name" property="elementName"/>
+        <result column="element_type" property="elementType"/>
+        <result column="event_type" property="eventType"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="assignee" property="assignee"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="listByInstanceId" resultMap="HighlightRecordMap">
+        SELECT * FROM camunda_highlight_record WHERE process_instance_id = #{processInstanceId} ORDER BY create_time ASC
+    </select>
+
+    <insert id="insert" parameterType="org.camunda.bpm.getstarted.entity.HighlightRecord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO camunda_highlight_record (
+            process_instance_id, process_definition_id, execution_id,
+            element_id, element_name, element_type, event_type,
+            start_time, end_time, assignee, create_time
+        ) VALUES (
+            #{processInstanceId}, #{processDefinitionId}, #{executionId},
+            #{elementId}, #{elementName}, #{elementType}, #{eventType},
+            #{startTime}, #{endTime}, #{assignee}, #{createTime}
+        )
+    </insert>
+
+    <!-- 按主键更新 assignee -->
+    <update id="updateAssigneeById">
+        UPDATE camunda_highlight_record
+        SET assignee = #{assignee}
+        WHERE id = #{id}
+    </update>
+
+    <!--
+        按【流程实例ID + 节点ID】更新最新一条记录的 assignee
+        注意：MySQL 不允许在 UPDATE 的 WHERE 里直接子查询同一张表（报错 1093），
+        必须再套一层派生表 ( ... ) tmp 才能绕过，这是这段 SQL 的关键
+    -->
+    <update id="updateAssigneeByInstanceAndElement">
+        UPDATE camunda_highlight_record
+        SET assignee = #{assignee}
+        WHERE id = (
+            SELECT id FROM (
+                SELECT id FROM camunda_highlight_record
+                WHERE process_instance_id = #{processInstanceId}
+                  AND element_id = #{elementId}
+                ORDER BY create_time DESC, id DESC
+                LIMIT 1
+            ) tmp
+        )
+    </update>
+
+    <!-- 按【流程实例ID + 节点ID】更新该节点下所有记录（多实例/循环节点场景） -->
+    <update id="updateAssigneeByInstanceAndElementAll">
+        UPDATE camunda_highlight_record
+        SET assignee = #{assignee}
+        WHERE process_instance_id = #{processInstanceId}
+          AND element_id = #{elementId}
+    </update>
+
+    <!-- 按执行ID更新 assignee -->
+    <update id="updateAssigneeByExecutionId">
+        UPDATE camunda_highlight_record
+        SET assignee = #{assignee}
+        WHERE execution_id = #{executionId}
+    </update>
+
+    <!-- 动态更新：只更新非 null 字段 -->
+    <update id="updateSelective" parameterType="org.camunda.bpm.getstarted.entity.HighlightRecord">
+        UPDATE camunda_highlight_record
+        <set>
+            <if test="assignee != null">assignee = #{assignee},</if>
+            <if test="elementName != null">element_name = #{elementName},</if>
+            <if test="endTime != null">end_time = #{endTime},</if>
+            <if test="eventType != null">event_type = #{eventType},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 统计某实例某节点的记录数 -->
+    <select id="countByInstanceAndElement" resultType="int">
+        SELECT COUNT(*)
+        FROM camunda_highlight_record
+        WHERE process_instance_id = #{processInstanceId}
+          AND element_id = #{elementId}
+    </select>
+
+</mapper>

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camunda 流程图高亮</title>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17.9.2/dist/assets/bpmn-js.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17.9.2/dist/assets/diagram-js.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17.9.2/dist/assets/bpmn-font/css/bpmn.css">
+    <script src="https://cdn.jsdelivr.net/npm/bpmn-js@17.9.2/dist/bpmn-navigated-viewer.development.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+        }
+        .header {
+            height: 60px;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            margin-bottom: 16px;
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #52c41a;
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: #73d13d;
+        }
+        .btn-default {
+            background: #1890ff;
+            color: #fff;
+        }
+        .btn-default:hover {
+            background: #40a9ff;
+        }
+        .select {
+            padding: 7px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+        .main-container {
+            display: flex;
+            gap: 16px;
+            padding: 0 16px;
+            height: calc(100vh - 76px);
+        }
+        .diagram-container {
+            flex: 1;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            position: relative;
+            overflow: hidden;
+        }
+        #canvas {
+            width: 100%;
+            height: 100%;
+        }
+        .bpmn-logo {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            opacity: 0.8;
+        }
+        .sidebar {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .panel {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .instance-item {
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+        .instance-item:hover {
+            background: #f5f7fa;
+        }
+        .instance-item.active {
+            background: #e6f7ff;
+            border-color: #1890ff;
+        }
+        .instance-id {
+            color: #333;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+        .instance-status {
+            font-size: 12px;
+        }
+        .status-running {
+            color: #52c41a;
+        }
+        .status-ended {
+            color: #8c8c8c;
+        }
+        .todo-item {
+            padding: 10px 12px;
+            background: #fffbe6;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .todo-name {
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .todo-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-small {
+            padding: 4px 12px;
+            font-size: 12px;
+        }
+        .history-item {
+            padding: 10px 12px;
+            border-left: 3px solid #d9d9d9;
+            background: #fafafa;
+            margin-bottom: 8px;
+            border-radius: 0 4px 4px 0;
+            font-size: 13px;
+        }
+        .history-item.completed {
+            border-left-color: #52c41a;
+            background: #f6ffed;
+        }
+        .history-item.active {
+            border-left-color: #1890ff;
+            background: #e6f7ff;
+        }
+        .history-node {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .history-meta {
+            font-size: 12px;
+            color: #666;
+        }
+        .empty {
+            text-align: center;
+            color: #8c8c8c;
+            padding: 24px 0;
+            font-size: 13px;
+        }
+        .instance-list-scroll {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .history-scroll {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        /* 高亮样式：canvas.addMarker(id,'xxx') 加的类名就是 xxx 本身，不会加任何前缀
+           （diagram-js 源码 _updateMarker 里是 svgClasses(gfx).add(marker)） */
+        .highlight-completed:not(.djs-connection) .djs-visual > :nth-child(1) {
+            fill: #d4edda !important;
+            stroke: #28a745 !important;
+            stroke-width: 2px !important;
+        }
+        .highlight-active:not(.djs-connection) .djs-visual > :nth-child(1) {
+            fill: #e6f7ff !important;
+            stroke: #1890ff !important;
+            stroke-width: 2px !important;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+        .highlight-flow .djs-visual > path,
+        .highlight-flow .djs-visual > polyline {
+            stroke: #52c41a !important;
+            stroke-width: 2px !important;
+            fill: none !important;
+        }
+        .highlight-flow .djs-visual > path[fill]:not([fill="none"]),
+        .highlight-flow .djs-visual > polygon {
+            fill: #f6ffed !important;
+            stroke: #52c41a !important;
+        }
+        /* 箭头 marker 跟随 stroke 颜色 */
+        svg marker path,
+        svg marker polygon,
+        svg marker polyline {
+            fill: context-stroke !important;
+            stroke: context-stroke !important;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.55; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Camunda 流程图高亮</h1>
+        <div class="header-actions">
+            <button class="btn btn-primary" onclick="startProcess()">启动审批流程</button>
+            <button class="btn btn-default" onclick="refreshInstanceList()">刷新流程列表</button>
+            <select class="select" id="assigneeSelect">
+                <option value="demo">张三</option>
+                <option value="lisi">李四</option>
+                <option value="wangwu">王五</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="diagram-container">
+            <div id="canvas"></div>
+        </div>
+        <div class="sidebar">
+            <div class="panel">
+                <div class="panel-title">流程实例</div>
+                <div class="instance-list-scroll" id="instanceList"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">当前待办</div>
+                <div id="todoList"><div class="empty">请选择流程实例</div></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">流转历史</div>
+                <div class="history-scroll" id="historyList"><div class="empty">请选择流程实例</div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BpmnViewer = window.BpmnJS;
+        const viewer = new BpmnViewer({ container: '#canvas' });
+        let currentInstanceId = null;
+
+        // 启动流程
+        async function startProcess() {
+            const assignee = $('#assigneeSelect').val();
+            const data = await $.post('/api/process/start', { assignee: assignee });
+            alert('流程实例Id: ' + data.instanceId);
+            await refreshInstanceList();
+        }
+
+        // 刷新实例列表
+        async function refreshInstanceList() {
+            const instances = await $.get('/api/process/instances');
+            let html = '';
+            instances.forEach(inst => {
+                const isActive = inst.id === currentInstanceId;
+                const statusClass = inst.ended ? 'status-ended' : 'status-running';
+                const statusText = inst.ended ? '已结束' : '运行中';
+                html += `<div class="instance-item ${isActive ? 'active' : ''}" onclick="selectInstance('${inst.id}')">
+                    <div class="instance-id">实例ID: ${inst.id.substring(0, 25)}...</div>
+                    <div class="instance-status ${statusClass}">${statusText}</div>
+                </div>`;
+            });
+            $('#instanceList').html(html || '<div class="empty">暂无流程实例</div>');
+        }
+
+        // 选择实例
+        async function selectInstance(instanceId) {
+            currentInstanceId = instanceId;
+            await refreshInstanceList();
+            await loadHighlight(instanceId);
+        }
+
+        // 完成任务
+        async function completeTask(taskId, approved) {
+            await $.post(`/api/process/complete/${taskId}`, { approve: approved });
+            await loadHighlight(currentInstanceId);
+            await refreshInstanceList();
+        }
+
+        // 加载高亮数据
+        async function loadHighlight(instanceId) {
+            try {
+                const data = await $.get('/api/process/highlight/' + instanceId);
+                console.log('高亮接口返回数据:', data);
+
+                // 渲染BPMN，等待完全加载完成
+                await viewer.importXML(data.bpmnXml);
+                const canvas = viewer.get('canvas');
+                canvas.zoom('fit-viewport');
+
+                // 等DOM渲染完成后再加高亮（关键！）
+                setTimeout(() => {
+                    console.log('已完成节点:', data.completedNodes);
+                    console.log('活跃节点:', data.activeNodes);
+                    console.log('高亮连线:', data.highlightedFlows);
+
+                    // 高亮已完成节点
+                    data.completedNodes.forEach(nodeId => {
+                        try {
+                            canvas.addMarker(nodeId, 'highlight-completed');
+                        } catch(e) {
+                            console.warn('已完成节点高亮失败:', nodeId, e.message);
+                        }
+                    });
+
+                    // 高亮连线
+                    data.highlightedFlows.forEach(flowId => {
+                        try {
+                            canvas.addMarker(flowId, 'highlight-flow');
+                        } catch(e) {
+                            console.warn('连线高亮失败:', flowId, e.message);
+                        }
+                    });
+
+                    // 高亮活跃节点
+                    data.activeNodes.forEach(nodeId => {
+                        try {
+                            canvas.addMarker(nodeId, 'highlight-active');
+                        } catch(e) {
+                            console.warn('活跃节点高亮失败:', nodeId, e.message);
+                        }
+                    });
+                    console.log('高亮执行完成');
+                }, 100);
+
+                // 加载待办任务
+                const todoTasks = await $.get('/api/process/todo/' + instanceId);
+                let todoHtml = '';
+                if (todoTasks.length === 0) {
+                    todoHtml = '<div class="empty">暂无待办任务</div>';
+                } else {
+                    todoTasks.forEach(task => {
+                        todoHtml += `<div class="todo-item">
+                            <div class="todo-name">${task.name}</div>
+                            <div style="font-size:12px;color:#666;margin-bottom:6px;">处理人: ${task.assignee || '未分配'}</div>
+                            <div class="todo-actions">
+                                <button class="btn btn-primary btn-small" onclick="completeTask('${task.id}', true)">同意</button>
+                                <button class="btn btn-default btn-small" onclick="completeTask('${task.id}', false)">驳回</button>
+                            </div>
+                        </div>`;
+                    });
+                }
+                $('#todoList').html(todoHtml);
+
+                // 渲染历史列表：按节点去重
+                const nodeMap = {};
+                data.historyList.forEach(item => {
+                    // 过滤连线，只显示节点
+                    if (item.elementType === 'sequenceFlow') return;
+                    if (!item.elementId) return;
+                    const key = item.elementId;
+                    if (!nodeMap[key] || item.eventType === 'end') {
+                        nodeMap[key] = item;
+                    }
+                });
+
+                let historyHtml = '';
+                // 按时间排序
+                const nodeList = Object.values(nodeMap).sort((a,b) => {
+                    const timeA = a.startTime ? new Date(a.startTime) : new Date(0);
+                    const timeB = b.startTime ? new Date(b.startTime) : new Date(0);
+                    return timeA - timeB;
+                });
+
+                nodeList.forEach(item => {
+                    let statusClass = '';
+                    let statusText = '';
+                    if (data.activeNodes.includes(item.elementId)) {
+                        statusClass = 'active';
+                        statusText = '运行中';
+                    } else if (data.completedNodes.includes(item.elementId)) {
+                        statusClass = 'completed';
+                        statusText = '已完成';
+                    }
+
+                    const name = item.elementName || item.elementId || '未命名节点';
+                    const typeMap = {
+                        'START_EVENT': '开始事件',
+                        'END_EVENT': '结束事件',
+                        'GATEWAY': '网关',
+                        'TASK': '用户任务'
+                    };
+                    const typeName = typeMap[item.elementType] || item.elementType;
+
+                    historyHtml += `<div class="history-item ${statusClass}">
+                        <div class="history-node">${name} <span style="font-size:12px;color:${statusClass==='completed'?'#52c41a':statusClass==='active'?'#1890ff':'#999'}">${statusText}</span></div>
+                        <div class="history-meta">类型: ${typeName}</div>
+                    </div>`;
+                });
+                $('#historyList').html(historyHtml || '<div class="empty">暂无流转记录</div>');
+
+            } catch(e) {
+                console.error('加载高亮失败:', e);
+                alert('加载失败: ' + (e.responseText || e.message));
+            }
+        }
+
+        // 初始化
+        $(document).ready(async function() {
+            await refreshInstanceList();
+        });
+    </script>
+</body>
+</html>
